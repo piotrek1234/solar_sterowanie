@@ -12,10 +12,11 @@ typedef enum{ false = 0, true = !false } bool;
 
 #define SERVO_MIN 200
 #define SERVO_MAX 600
+volatile uint8_t licznik = 0;
 volatile uint8_t licznik_adc = 0;
-volatile int wartosc;	//przechowuje zadawan¹ wartoœæ sygna³u steruj¹cego
+volatile uint8_t wartosc;	//przechowuje zadawan¹ wartoœæ sygna³u steruj¹cego
 volatile bool normalna_praca = false;
-volatile int analog[ILE_ADC];
+volatile uint8_t analog[ILE_ADC];
 
 #define BAUD 9600
 #define ubrr F_CPU/16/BAUD-1
@@ -67,7 +68,7 @@ void add_measure(int value)
 int get_analog(void)
 {
 	int ret=0;
-	for(int i=0; i<ILE_ADC; ++i)
+	for(uint8_t i=0; i<ILE_ADC; ++i)
 	{
 		ret += analog[i];
 	}
@@ -81,12 +82,12 @@ void test_zrywki(void)
 	if(!(PIND & PD2))
 	{
 		normalna_praca = true;
-		uart('+');
+		//uart('+');
 	}
 	else
 	{
 		normalna_praca = false;
-		uart('-');
+		//uart('-');
 	}
 }
 
@@ -94,14 +95,13 @@ void test_zrywki(void)
 ISR(INT0_vect)
 {
 	normalna_praca = false;
-	uart('z');
+	//uart('z');
 }
 
 //przerwanie od przycisku powrotu do pracy
 ISR(INT1_vect)
 {
 	test_zrywki();
-	uart('j');
 }
 
 int rescale(int in_left, int in_right, int out_left, int out_right, int value)
@@ -131,16 +131,21 @@ int main(void)
 	
     while(1)
     {
+		if(licznik >= 10)
+		{
+			licznik = 0;
+			wartosc = get_analog();
+			if(normalna_praca)
+				OCR1A = rescale(0,255,SERVO_MIN, SERVO_MAX, wartosc);
+			else
+				OCR1A = 0;
+		}
+		
 	   while( ADCSRA & (1<<ADSC) );
 	   add_measure(ADCH);
-	   wartosc = get_analog();
-	   uart(wartosc);
-	   if(normalna_praca)
-			OCR1A = rescale(0,255,SERVO_MIN, SERVO_MAX, wartosc);
-	   else
-			OCR1A = 0;
-	   ADCSRA |= (1<<ADSC);
-	   _delay_ms(200);
 	   
+	   ADCSRA |= (1<<ADSC);
+	   licznik++;
+	   _delay_ms(20);
     }
 }
